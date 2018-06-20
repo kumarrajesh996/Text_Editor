@@ -1,0 +1,459 @@
+import javax.swing.*;
+import javax.swing.text.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.lang.Object;
+
+public class SimpleTextEditor{
+    private JFrame frame;
+    private Action newAction,openAction,saveAction,saveAsAction,boldAction,italicsAction,copyAction,cutAction,pasteAction,printAction,findAction;
+    private JTextArea mainTextArea;
+    private JTextField findField,replaceField;
+    private JFileChooser fileChooser;
+    private File file;
+    private int boldCheck,italicsCheck,caseCheck,replaceCheck,keepSearch;
+    private JComboBox<String>fontTypeList,fontSizeList;
+    private JButton findNext,replace,findAll,replaceAll,okFind,find,previousFind;
+    private JDialog findDialog;
+    private JCheckBox caseSensitive;
+    private Highlighter highlighter;
+
+    public static void main(String[]args){
+        SimpleTextEditor simpleNote=new SimpleTextEditor();
+        simpleNote.go();
+    }
+
+    private void go(){
+        frame=new JFrame();
+        JPanel background = new JPanel();
+        frame.getContentPane().add(BorderLayout.CENTER, background);
+        frame.setTitle("New Document"+"-SimpleTextEditor v.2");
+        frame.setLocationByPlatform(true);
+        background.setLayout(new BorderLayout());
+        createActions();
+        frame.setJMenuBar(getMenu());
+        background.add(BorderLayout.CENTER, getTextArea());
+        background.add(BorderLayout.PAGE_START, getToolBar());
+        findDialog=getFindAndReplace();
+
+        frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        frame.setSize(800,600);
+        frame.setVisible(true);
+    }
+
+    private JMenuBar getMenu(){
+        JMenuBar menuBar=new JMenuBar();
+        JMenu file=new JMenu("File");
+        JMenu edit=new JMenu("Edit");
+        JMenu help=new JMenu("Help");
+        menuBar.add(file);
+        menuBar.add(edit);
+        menuBar.add(help);
+        JMenuItem newFile=new JMenuItem(newAction);
+        newFile.setIcon(null);
+        JMenuItem openFile=new JMenuItem(openAction);
+        openFile.setIcon(null);
+        JMenuItem saveFile=new JMenuItem(saveAction);
+        saveFile.setIcon(null);
+        JMenuItem saveAsFile=new JMenuItem(saveAsAction);
+        saveAsFile.setIcon(null);
+        JMenuItem exit=new JMenuItem("Exit");
+        exit.addActionListener(new exitListener());
+        JMenuItem print=new JMenuItem(printAction);
+        print.setIcon(null);
+        file.add(newFile);
+        file.add(openFile);
+        file.add(saveFile);
+        file.add(saveAsFile);
+        file.add(print);
+        file.add(exit);
+        JMenuItem findAndReplace=new JMenuItem(findAction);
+        JMenuItem copy=new JMenuItem(copyAction);
+        JMenuItem cut=new JMenuItem(cutAction);
+        JMenuItem paste=new JMenuItem(pasteAction);
+        edit.add(copy);
+        edit.add(cut);
+        edit.add(paste);
+        edit.add(findAndReplace);
+        return menuBar;
+    }
+
+    private JScrollPane getTextArea(){
+        mainTextArea=new JTextArea();
+        highlighter = mainTextArea.getHighlighter();
+        Font mainFont=new Font("Ariala",Font.PLAIN,12);
+        mainTextArea.setFont(mainFont);
+        mainTextArea.setBorder(BorderFactory.createEmptyBorder(10,10,0,10));
+        mainTextArea.addMouseListener(new ClickListener());
+        mainTextArea.setLineWrap(true);
+        mainTextArea.setWrapStyleWord(true);
+        JScrollPane textScroll=new JScrollPane(mainTextArea);
+        textScroll
+.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        textScroll
+ .setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        return textScroll;
+    }
+
+    private JToolBar getToolBar(){
+        boldCheck=0;
+        italicsCheck=0;
+        JToolBar toolBar=new JToolBar();
+        AbstractButton newTool=new JButton(newAction);
+        AbstractButton openTool=new JButton(openAction);
+        AbstractButton saveTool=new JButton(saveAction);
+        AbstractButton printTool=new JButton(printAction);
+        AbstractButton bold=new JButton(boldAction);
+        AbstractButton italics=new JButton(italicsAction);
+        toolBar.add(newTool);
+        toolBar.add(openTool);
+        toolBar.add(saveTool);
+        toolBar.add(printTool);
+        toolBar.addSeparator();
+        toolBar.add(getFontSizeList());
+        toolBar.add(getFontsList());
+        toolBar.addSeparator();
+        toolBar.add(bold);
+        toolBar.add(italics);
+        toolBar.setFloatable(false);
+        return toolBar;
+    }
+
+    private JComboBox<String>getFontsList(){
+        String fonts[]=GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .getAvailableFontFamilyNames();
+        fontTypeList=new JComboBox<String>(fonts);
+        fontTypeList.addActionListener(new ComboBoxListener());
+        fontTypeList.setSelectedIndex(6);
+        fontTypeList.setPreferredSize(new Dimension(280,28));
+        fontTypeList.setMaximumSize(new Dimension(280,28));
+        return fontTypeList;
+    }
+
+    private JComboBox<String>getFontSizeList(){
+        String[]size=new String[95];
+        for(int i=0;i<95;i++){
+            size[i]=String.valueOf(i+6);
+        }
+        fontSizeList=new JComboBox<String>(size);
+        fontSizeList.setSelectedIndex(6);
+        fontSizeList.setPreferredSize(new Dimension(49,28));
+        fontSizeList.setMaximumSize(new Dimension(49,28));
+        fontSizeList.addActionListener(new ComboBoxListener());
+        return fontSizeList;
+    }
+
+    public JDialog getFindAndReplace(){
+        JDialog findAndReplaceWin=new JDialog(frame,"Find and replace");
+        JPanel findAndReplacePanel=new JPanel();
+        findAndReplacePanel.setLayout(new GridLayout(7,1,2,2));
+        JPanel findPanel1=new JPanel(new GridLayout(1,2));
+        JPanel findPanel2=new JPanel(new GridLayout(1,2));
+        JPanel replacePanel=new JPanel(new GridLayout(1,2));
+        keepSearch=0;
+        findField=new JTextField("find");
+        replaceField=new JTextField("replace");
+        find=new JButton("Find");
+        find.addActionListener(new FARListener());
+        findNext=new JButton("Next");
+        findNext.addActionListener(new FARListener());
+        previousFind=new JButton("Previous");
+        previousFind.addActionListener(new FARListener());
+        findAll=new JButton("Find all");
+        findAll.addActionListener(new FARListener());
+        replace=new JButton("Replace");
+        replace.addActionListener(new FARListener());
+        replaceAll=new JButton("Replace all");
+        replaceAll.addActionListener(new FARListener());
+        caseSensitive=new JCheckBox("Case sensitive");
+        caseSensitive.setSelected(true);
+        caseSensitive.addActionListener(new FARListener());
+        okFind=new JButton("OK");
+        okFind.addActionListener(new FARListener());
+        findAndReplacePanel.add(findField);
+        findPanel1.add(find);
+        findPanel1.add(findAll);
+        findPanel2.add(findNext);
+        findPanel2.add(previousFind);
+        findAndReplacePanel.add(findPanel1);
+        findAndReplacePanel.add(findPanel2);
+        findAndReplacePanel.add(replaceField);
+        replacePanel.add(replace);
+        replacePanel.add(replaceAll);
+        findAndReplacePanel.add(replacePanel);
+        findAndReplacePanel.add(caseSensitive);
+        findAndReplacePanel.add(okFind);
+        findAndReplaceWin.add(findAndReplacePanel);
+        findAndReplaceWin.pack();
+        findAndReplaceWin.setLocationRelativeTo(frame);
+        findAndReplaceWin.setVisible(false);
+        findAndReplaceWin.setEnabled(false);
+        return findAndReplaceWin;
+    }
+
+    private void createActions(){
+        newAction=new MainActions("New",null,"Create new file",
+                KeyStroke.getKeyStroke(KeyEvent.VK_N,InputEvent.CTRL_MASK));
+        saveAction=new MainActions("Save",null,
+                "Save file in existing file",KeyStroke.getKeyStroke(
+                KeyEvent.VK_S,InputEvent.CTRL_MASK));
+        openAction=new MainActions("Open",null,"Open file",
+                KeyStroke.getKeyStroke(KeyEvent.VK_O,InputEvent.CTRL_MASK));
+        saveAsAction=new MainActions("Save as",null,
+                "Save in selected file",KeyStroke.getKeyStroke(KeyEvent.VK_A,
+                InputEvent.CTRL_MASK));
+        boldAction=new MainActions("Bold",null,"Bold font",
+                KeyStroke.getKeyStroke(KeyEvent.VK_B,InputEvent.CTRL_MASK));
+        italicsAction=new MainActions("Italics",null,"Italic font",
+                KeyStroke.getKeyStroke(KeyEvent.VK_I,InputEvent.CTRL_MASK));
+        printAction=new MainActions("Print",null,"Print the file",
+                KeyStroke.getKeyStroke(KeyEvent.VK_K,InputEvent.CTRL_MASK));
+        copyAction=new MainActions("Copy",null,"Copy the selected text",
+                KeyStroke.getKeyStroke(KeyEvent.VK_C,InputEvent.CTRL_MASK));
+        cutAction=new MainActions("Cut",null,"Copy the selected text",
+                KeyStroke.getKeyStroke(KeyEvent.VK_X,InputEvent.CTRL_MASK));
+        pasteAction=new MainActions("Paste",null,"Copy the selected text",
+                KeyStroke.getKeyStroke(KeyEvent.VK_V,InputEvent.CTRL_MASK));
+        findAction=new MainActions("Find and replace",null,
+                "Search for and replace input word",KeyStroke.getKeyStroke(
+                KeyEvent.VK_F,InputEvent.CTRL_MASK));
+    }
+
+    private void save(){
+        try{
+            file=fileChooser.getSelectedFile();
+            BufferedWriter writer=new BufferedWriter(new FileWriter(file));
+            mainTextArea.write(writer);
+            writer.close();
+            frame.setTitle(file.getName()+"-SimpleTextEditor v.2");
+        }catch(IOException ioException){
+            ioException.printStackTrace();
+        }
+    }
+
+    public void find(){
+        String text;
+        int endPoint;
+        int findPoint;
+        text=mainTextArea.getText();
+        String searchString=findField.getText();
+        if(caseCheck==1){
+            text=text.toLowerCase();
+            searchString=searchString.toLowerCase();
+        }
+        Highlighter.HighlightPainter painter=new DefaultHighlighter.DefaultHighlightPainter(
+                Color.LIGHT_GRAY);
+        findPoint=text.indexOf(searchString,keepSearch);
+        endPoint=findPoint+searchString.length();
+        if(findPoint!=-1){
+            try{
+                highlighter.addHighlight(findPoint,endPoint,painter);
+            }catch(BadLocationException ex){
+                ex.printStackTrace();
+            }
+            keepSearch=endPoint;
+        }else{
+            JOptionPane.showMessageDialog(findDialog,
+                    "\""+findField.getText()+"\""+" not found.",
+                    "Warning!",JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    public void replace(){
+        String text=mainTextArea.getText();
+        String findString=findField.getText();
+        String replaceString=replaceField.getText();
+        text=text.substring(0,keepSearch-findString.length())
+               +replaceString+text.substring(keepSearch);
+        mainTextArea.setText(text);
+
+    }
+
+    private class MainActions extends AbstractAction{
+        public MainActions(String name,ImageIcon icon,String desc,KeyStroke key){
+            super(name,icon);
+            putValue(SHORT_DESCRIPTION,desc);
+            putValue(ACCELERATOR_KEY,key);
+        }
+
+        public void actionPerformed(ActionEvent event){
+            Object source=event.getActionCommand();
+            if(source.equals("New")){
+                System.out.println(event.getActionCommand());
+                mainTextArea.setText("");
+                file=null;
+                frame.setTitle("New Document"+"-SimpleTextEditor v.2");
+            }else if(source.equals("Save")){
+                if(file==null){
+                    fileChooser=new JFileChooser();
+                    fileChooser.showSaveDialog(frame);
+                    save();
+                }else{
+                    save();
+                }
+            }else if(source.equals("Save as")){
+                fileChooser=new JFileChooser();
+                fileChooser.showSaveDialog(frame);
+                save();
+            }else if(source.equals("Open")){
+                try{
+                    mainTextArea.setText("");
+                    fileChooser=new JFileChooser();
+                    fileChooser.showOpenDialog(frame);
+                    file=fileChooser.getSelectedFile();
+                    InputStream inputStream=new FileInputStream(file);
+                    InputStreamReader inputReader=new InputStreamReader(
+                            inputStream,"UTF-8");
+                    BufferedReader reader=new BufferedReader(inputReader);
+                    mainTextArea.read(reader,file);
+                    frame.setTitle(file.getName()+"-SimpleTextEditor v.2");
+                    reader.close();
+                }catch(IOException ioException){
+                    ioException.printStackTrace();
+                }
+            }else if(source.equals("Bold")){
+                if(boldCheck==0){
+                    mainTextArea.setFont(new Font(mainTextArea.getFont()
+                            .getName(),Font.BOLD,mainTextArea.getFont()
+                            .getSize()));
+                    boldCheck=1;
+                    italicsCheck=0;
+                }else if(boldCheck==1){
+                    mainTextArea.setFont(new Font(mainTextArea.getFont()
+                            .getName(),Font.PLAIN,mainTextArea.getFont()
+                            .getSize()));
+                    boldCheck=0;
+                    italicsCheck=0;
+                }
+            }else if(source.equals("Italics")){
+                if(italicsCheck==0){
+                    mainTextArea.setFont(new Font(mainTextArea.getFont()
+                            .getName(),Font.ITALIC,mainTextArea.getFont()
+                            .getSize()));
+                    italicsCheck=1;
+                    boldCheck=0;
+                }else if(italicsCheck==1){
+                    mainTextArea.setFont(new Font(mainTextArea.getFont()
+                            .getName(),Font.PLAIN,mainTextArea.getFont()
+                            .getSize()));
+                    italicsCheck=0;
+                    boldCheck=0;
+                }
+            }else if(source.equals("Print")){
+                try{
+                    mainTextArea.print(null,null,true,null,null,true);
+                }catch(Exception ex){
+                    ex.printStackTrace();
+                }
+            }else if(source.equals("Copy")){
+                mainTextArea.copy();
+            }else if(source.equals("Cut")){
+                mainTextArea.cut();
+            }else if(source.equals("Paste")){
+                mainTextArea.paste();
+            }else if(source.equals("Find and replace")){
+                if(mainTextArea.getSelectedText()!=null){
+                    findField.setText(mainTextArea.getSelectedText());
+                }
+                findDialog.setVisible(true);
+                findDialog.setEnabled(true);
+            }
+        }
+    }
+
+    private class ComboBoxListener implements ActionListener{
+        public void actionPerformed(ActionEvent event){
+            Object source=event.getSource();
+            if(source==fontTypeList){
+                mainTextArea.setFont(new Font(fontTypeList.getSelectedItem()
+                        .toString(),mainTextArea.getFont().getStyle(),
+                        mainTextArea.getFont().getSize()));
+            }else if(source==fontSizeList){
+                mainTextArea.setFont(new Font(mainTextArea.getFont().getName(),
+                        mainTextArea.getFont().getStyle(),Integer
+                        .parseInt(fontSizeList.getSelectedItem()
+                                .toString())));
+
+            }
+        }
+    }
+
+    private class ClickListener extends MouseAdapter{
+        public void mouseReleased(MouseEvent e){
+            getPopupMenu(e);
+        }
+
+        private void getPopupMenu(MouseEvent e){
+            JPopupMenu popupMenu=new JPopupMenu();
+            JMenuItem copy=new JMenuItem(copyAction);
+            popupMenu.add(copy);
+            JMenuItem cut=new JMenuItem(cutAction);
+            popupMenu.add(cut);
+            JMenuItem paste=new JMenuItem(pasteAction);
+            popupMenu.add(paste);
+            JMenuItem find=new JMenuItem(findAction);
+            popupMenu.add(find);
+
+            if(e.isPopupTrigger()){
+                popupMenu.show(e.getComponent(),e.getX(),e.getY());
+            }
+        }
+    }
+
+    private class exitListener implements ActionListener{
+        public void actionPerformed(ActionEvent e){
+            System.exit(0);
+        }
+    }
+
+    private class FARListener implements ActionListener{
+        public void actionPerformed(ActionEvent e){
+            Object source=e.getSource();
+            if(source==find){
+                highlighter.removeAllHighlights();
+                keepSearch=0;
+                replaceCheck=1;
+                find();
+            }else if(source==findNext){
+                highlighter.removeAllHighlights();
+                find();
+            }else if(source==previousFind){
+                highlighter.removeAllHighlights();
+                System.out.println(keepSearch);
+                keepSearch=mainTextArea.getText().lastIndexOf(
+                        findField.getText(),
+                        keepSearch-findField.getText().length()-1);
+                System.out.println(keepSearch);
+                find();
+            }else if(source==findAll){
+                do{
+                    find();
+                }while(keepSearch<mainTextArea.getText().lastIndexOf(
+                        findField.getText()));
+            }else if(source==replace){
+                if(replaceCheck!=0){
+                    replace();
+                }
+                replaceCheck=0;
+            }else if(source==replaceAll){
+                keepSearch=0;
+                do{
+                    find();
+                    replace();
+                }while(mainTextArea.getText().contains(findField.getText()));
+            }else if(source==caseSensitive){
+                if(caseSensitive.isSelected()){
+                    caseCheck=0;
+                }else{
+                    caseCheck=1;
+                }
+            }else if(source==okFind){
+                findDialog.setVisible(false);
+                findField.setText("find");
+                replaceField.setText("replace");
+                mainTextArea.setCaretPosition(mainTextArea.getText().length());
+            }
+        }
+    }
+}
